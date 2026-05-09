@@ -1,0 +1,82 @@
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 2px;
+  width: 100%;
+  max-width: 500px;
+  aspect-ratio: 1 / 1;
+}
+
+@media (min-width: 600px) {
+  .board {
+    gap: 4px;
+  }
+}
+
+.cell {
+  background-color: #E6DFD1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.cell.dark {
+  background-color: #D1C7B1;
+}
+
+.cell.center-cell {
+  border: 2px dashed rgba(90, 90, 64, 0.3);
+}
+
+/* Selection and highlighting */
+.cell.selected {
+  /* Using standard CSS box shadow, wait, the design HTML used ring on piece */
+}
+.cell.selected .piece {
+  box-shadow: 0 0 0 2px #E6DFD1, 0 0 0 6px rgba(192, 86, 64, 0.4);
+}
+
+.cell.highlight::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: rgba(90, 90, 64, 0.2);
+}
+.cell.highlight.capture::after {
+  background-color: rgba(192, 86, 64, 0.3);
+  border: 2px solid #C05640;
+}
+
+.piece {
+  width: 80%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+  user-select: none;
+}
+
+.piece:hover {
+  transform: scale(1.05);
+}
+
+.piece.player-A {
+  background-color: #C05640;
+}
+
+.piece.player-B {
+  background-color: #5A5A40;
+}
+
+.piece .crown {
+  color: rgba(255,255,255,0.7);
+  font-size: clamp(16px, 4vw, 24px);
+}
