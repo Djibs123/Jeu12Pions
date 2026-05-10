@@ -1,8 +1,8 @@
 import { database } from "./firebaseConfig";
-import { ref, set, get, update, onValue, off, onDisconnect } from "firebase/database";
-import { OnlineRoom, OnlineRoomStatus } from "./roomTypes";
+import { ref, set, get, update, onValue, onDisconnect } from "firebase/database";
+import { OnlineRoom } from "./roomTypes";
 import { GameState, Player } from "../game/types";
-import { initialState, GameAction, gameReducer } from "../game/gameReducer";
+import { initialState } from "../game/gameReducer";
 import { createInitialBoard } from "../game/initialBoard";
 import { serializeBoardForFirebase, deserializeBoardFromFirebase } from "./boardSerializer";
 
@@ -80,7 +80,7 @@ export const listenToOnlineRoom = (roomCode: string, callback: (room: OnlineRoom
   });
 
   return () => {
-    off(roomRef, "value", unsubscribe);
+    unsubscribe();
   };
 };
 

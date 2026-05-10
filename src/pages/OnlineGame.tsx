@@ -50,21 +50,54 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     };
   }, [currentRoomCode]);
 
-  // Infer selectedCell if we are in mustContinueCapture phase and page refreshed
+  // Keep local selection in sync with the authoritative Firebase game state.
   useEffect(() => {
-    if (room && room.status === 'playing' && room.game.mustContinueCapture && !localSelectedCell) {
+    if (!room || !currentPlayerRole || room.status !== 'playing') {
+      if (localSelectedCell) setLocalSelectedCell(null);
+      return;
+    }
+
+    if (room.game.status === 'finished') {
+      if (localSelectedCell) setLocalSelectedCell(null);
+      return;
+    }
+
+    const isMyTurn = room.game.currentPlayer === currentPlayerRole;
+    if (!isMyTurn) {
+      if (localSelectedCell) setLocalSelectedCell(null);
+      return;
+    }
+
+    if (room.game.mustContinueCapture) {
       const history = room.game.moveHistory || [];
-      if (history.length > 0) {
-        setLocalSelectedCell(history[history.length - 1].to);
+      const expectedCell = history.length > 0 ? history[history.length - 1].to : null;
+      if (!expectedCell) {
+        if (localSelectedCell) setLocalSelectedCell(null);
+        return;
+      }
+
+      if (!localSelectedCell || !isSameCell(localSelectedCell, expectedCell)) {
+        setLocalSelectedCell(expectedCell);
+      }
+      return;
+    }
+
+    if (localSelectedCell) {
+      const selectedPiece = getPieceAt(room.game.board, localSelectedCell);
+      if (!selectedPiece || selectedPiece.player !== currentPlayerRole) {
+        setLocalSelectedCell(null);
       }
     }
-  }, [room, localSelectedCell]);
+  }, [room, currentPlayerRole, localSelectedCell]);
 
   // Compute legal moves based on Firebase board state and local selection
   const legalMoves = useMemo(() => {
     if (!room || room.status !== 'playing' || !room.game) return [];
     if (!localSelectedCell || room.game.status === 'finished') return [];
     if (room.game.currentPlayer !== currentPlayerRole) return [];
+
+    const selectedPiece = getPieceAt(room.game.board, localSelectedCell);
+    if (!selectedPiece || selectedPiece.player !== currentPlayerRole) return [];
     
     if (room.game.mustContinueCapture) {
        return getLegalCaptures(room.game.board, localSelectedCell);

@@ -7,7 +7,7 @@ import { gameReducer, initialState } from '../game/gameReducer';
 import { getLegalMoves, getLegalCaptures } from '../game/moveEngine';
 import { isSameCell, getPieceAt } from '../game/rules';
 import { Cell } from '../game/types';
-import { getAIMove, chooseRandomMove, getCapturingMoves } from '../game/aiPlayer';
+import { getAIMove, chooseRandomMove } from '../game/aiPlayer';
 
 interface AIGameProps {
   onBackToMenu: () => void;
