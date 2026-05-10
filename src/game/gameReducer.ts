@@ -1,6 +1,6 @@
-import { GameState, Move, Cell, GameStatus } from "./types";
+import { GameState, Move, Cell } from "./types";
 import { createInitialBoard } from "./initialBoard";
-import { applyMove, promoteIfNeeded, getLegalCaptures, getLegalMoves, switchPlayer, promoteLastPieces } from "./moveEngine";
+import { applyMove, promoteIfNeeded, getLegalCaptures, switchPlayer, promoteLastPieces } from "./moveEngine";
 import { checkWinner } from "./victory";
 import { isSameCell, getPieceAt } from "./rules";
 
@@ -49,53 +49,37 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       const { move } = action;
       
       const piece = getPieceAt(state.board, move.from);
-      if (!piece || piece.player !== state.currentPlayer) return state;
+      if (!piece) return state;
 
-      if (state.mustContinueCapture) {
-        if (!state.selectedCell || !isSameCell(state.selectedCell, move.from)) {
-          return state;
-        }
-      }
-
-      const legalMoves = state.mustContinueCapture
-        ? getLegalCaptures(state.board, move.from)
-        : getLegalMoves(state.board, move.from);
-      const legalMove = legalMoves.find(candidate =>
-        candidate.type === move.type && isSameCell(candidate.to, move.to)
-      );
-      if (!legalMove) return state;
-
-      const newBoard = applyMove(state.board, legalMove);
-      const promoted = promoteIfNeeded(newBoard, legalMove.to);
+      const newBoard = applyMove(state.board, move);
+      const promoted = promoteIfNeeded(newBoard, move.to);
       promoteLastPieces(newBoard);
       
       // Update history
       const moveRecord = {
         player: piece.player,
         pieceType: piece.type, // type before promotion
-        from: legalMove.from,
-        to: legalMove.to,
-        type: legalMove.type,
-        captured: legalMove.captured || [],
+        from: move.from,
+        to: move.to,
+        type: move.type,
+        captured: move.captured || [],
         promoted
       };
 
       const newHistory = [...state.moveHistory, moveRecord];
 
       let nextPlayer = state.currentPlayer;
-      let nextStatus: GameStatus = state.status;
+      let nextStatus = state.status;
       let nextWinner = state.winner;
       let nextMsg = "";
       let continueCapture = false;
       let nextSelectedCell = null;
 
-      // Check for optional follow-up capture.
-      // If the piece got promoted by this capture, getLegalCaptures will use queen rules.
-      if (legalMove.type === "capture") {
-        const furtherCaptures = getLegalCaptures(newBoard, legalMove.to);
+      if (move.type === "capture") {
+        const furtherCaptures = getLegalCaptures(newBoard, move.to);
         if (furtherCaptures.length > 0) {
           continueCapture = true;
-          nextSelectedCell = legalMove.to;
+          nextSelectedCell = move.to;
           nextMsg = "Capture multiple possible. Continuez ou terminez le tour.";
         }
       }
@@ -116,7 +100,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         ...state,
         board: newBoard,
         currentPlayer: nextPlayer,
-        status: nextStatus,
+        status: nextStatus as GameStatus,
         winner: nextWinner,
         moveHistory: newHistory,
         message: nextMsg,

@@ -1,8 +1,8 @@
 import { database } from "./firebaseConfig";
-import { ref, set, get, update, onValue, onDisconnect } from "firebase/database";
-import { OnlineRoom } from "./roomTypes";
+import { ref, set, get, update, onValue, off } from "firebase/database";
+import { OnlineRoom, OnlineRoomStatus } from "./roomTypes";
 import { GameState, Player } from "../game/types";
-import { initialState } from "../game/gameReducer";
+import { initialState, GameAction, gameReducer } from "../game/gameReducer";
 import { createInitialBoard } from "../game/initialBoard";
 import { serializeBoardForFirebase, deserializeBoardFromFirebase } from "./boardSerializer";
 
@@ -80,7 +80,7 @@ export const listenToOnlineRoom = (roomCode: string, callback: (room: OnlineRoom
   });
 
   return () => {
-    unsubscribe();
+    off(roomRef, "value", unsubscribe);
   };
 };
 
@@ -122,19 +122,4 @@ export const restartOnlineRoom = async (roomCode: string): Promise<void> => {
 export const leaveOnlineRoom = async (roomCode: string, player: Player): Promise<void> => {
   const playerRef = ref(database, `rooms/${roomCode}/players/${player}`);
   await update(playerRef, { connected: false });
-};
-
-export const setupPlayerPresence = async (roomCode: string, player: Player): Promise<void> => {
-  const connectedRef = ref(database, ".info/connected");
-  const playerStatusRef = ref(database, `rooms/${roomCode}/players/${player}/connected`);
-
-  onValue(connectedRef, (snap) => {
-    if (snap.val() === true) {
-      // We're connected (or reconnected)
-      set(playerStatusRef, true);
-
-      // When I disconnect, update the last time I was seen online
-      onDisconnect(playerStatusRef).set(false);
-    }
-  });
 };

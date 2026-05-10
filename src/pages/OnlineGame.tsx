@@ -8,9 +8,7 @@ import {
   joinOnlineRoom, 
   listenToOnlineRoom, 
   updateOnlineGameState,
-  restartOnlineRoom,
-  setupPlayerPresence,
-  leaveOnlineRoom
+  restartOnlineRoom
 } from '../online/roomService';
 import { OnlineRoom } from '../online/roomTypes';
 import { Player, Cell } from '../game/types';
@@ -50,54 +48,21 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     };
   }, [currentRoomCode]);
 
-  // Keep local selection in sync with the authoritative Firebase game state.
+  // Infer selectedCell if we are in mustContinueCapture phase and page refreshed
   useEffect(() => {
-    if (!room || !currentPlayerRole || room.status !== 'playing') {
-      if (localSelectedCell) setLocalSelectedCell(null);
-      return;
-    }
-
-    if (room.game.status === 'finished') {
-      if (localSelectedCell) setLocalSelectedCell(null);
-      return;
-    }
-
-    const isMyTurn = room.game.currentPlayer === currentPlayerRole;
-    if (!isMyTurn) {
-      if (localSelectedCell) setLocalSelectedCell(null);
-      return;
-    }
-
-    if (room.game.mustContinueCapture) {
+    if (room && room.status === 'playing' && room.game.mustContinueCapture && !localSelectedCell) {
       const history = room.game.moveHistory || [];
-      const expectedCell = history.length > 0 ? history[history.length - 1].to : null;
-      if (!expectedCell) {
-        if (localSelectedCell) setLocalSelectedCell(null);
-        return;
-      }
-
-      if (!localSelectedCell || !isSameCell(localSelectedCell, expectedCell)) {
-        setLocalSelectedCell(expectedCell);
-      }
-      return;
-    }
-
-    if (localSelectedCell) {
-      const selectedPiece = getPieceAt(room.game.board, localSelectedCell);
-      if (!selectedPiece || selectedPiece.player !== currentPlayerRole) {
-        setLocalSelectedCell(null);
+      if (history.length > 0) {
+        setLocalSelectedCell(history[history.length - 1].to);
       }
     }
-  }, [room, currentPlayerRole, localSelectedCell]);
+  }, [room, localSelectedCell]);
 
   // Compute legal moves based on Firebase board state and local selection
   const legalMoves = useMemo(() => {
     if (!room || room.status !== 'playing' || !room.game) return [];
     if (!localSelectedCell || room.game.status === 'finished') return [];
     if (room.game.currentPlayer !== currentPlayerRole) return [];
-
-    const selectedPiece = getPieceAt(room.game.board, localSelectedCell);
-    if (!selectedPiece || selectedPiece.player !== currentPlayerRole) return [];
     
     if (room.game.mustContinueCapture) {
        return getLegalCaptures(room.game.board, localSelectedCell);
@@ -117,7 +82,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       const code = await createOnlineRoom(playerName.trim());
       setCurrentRoomCode(code);
       setCurrentPlayerRole('A');
-      await setupPlayerPresence(code, 'A');
     } catch (err: any) {
       setErrorMsg(err.message || 'Erreur lors de la création de la partie.');
     } finally {
@@ -141,7 +105,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       await joinOnlineRoom(code, playerName.trim());
       setCurrentRoomCode(code);
       setCurrentPlayerRole('B');
-      await setupPlayerPresence(code, 'B');
     } catch (err: any) {
       setErrorMsg(err.message || 'Erreur lors de la connexion à la partie.');
     } finally {
@@ -153,19 +116,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     if (!room || room.status !== 'playing' || !currentPlayerRole) return;
     if (room.game.status === 'finished') return;
     
-    // Check disconnect
-    const opponentRole = currentPlayerRole === 'A' ? 'B' : 'A';
-    const opponent = room.players[opponentRole as 'A' | 'B'];
-    if (opponent && opponent.connected === false) {
-      setErrorMsg("L'adversaire a quitté la partie.");
-      return;
-    }
-    const me = room.players[currentPlayerRole];
-    if (me && me.connected === false) {
-      setErrorMsg("Vous êtes déconnecté.");
-      return;
-    }
-
     // Check if it's player's turn
     if (room.game.currentPlayer !== currentPlayerRole) {
       setErrorMsg("Ce n'est pas ton tour.");
@@ -207,13 +157,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     if (!room || room.status !== 'playing' || !currentPlayerRole) return;
     if (room.game.currentPlayer !== currentPlayerRole) return;
     
-    const opponentRole = currentPlayerRole === 'A' ? 'B' : 'A';
-    const opponent = room.players[opponentRole as 'A' | 'B'];
-    if (opponent && opponent.connected === false) return;
-    
-    const me = room.players[currentPlayerRole];
-    if (me && me.connected === false) return;
-    
     const mockState = { ...room.game, selectedCell: localSelectedCell };
     const nextState = gameReducer(mockState, { type: 'END_TURN' });
     
@@ -230,13 +173,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
         console.error("Erreur Firebase:", e);
       });
     }
-  };
-
-  const handleLeaveRoom = () => {
-    if (currentRoomCode && currentPlayerRole) {
-      leaveOnlineRoom(currentRoomCode, currentPlayerRole).catch(e => console.error("Erreur déconnexion:", e));
-    }
-    onBackToMenu();
   };
 
   // Views rendering
@@ -308,7 +244,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
 
   if (room.status === 'waiting') {
     return (
-      <ModeLayout title="12 Pions" subtitle="Mode En Ligne" footerMessage="En attente du joueur B..." onBack={handleLeaveRoom}>
+      <ModeLayout title="12 Pions" subtitle="Mode En Ligne" footerMessage="En attente du joueur B..." onBack={onBackToMenu}>
         <div className="online-setup-container" style={{textAlign: 'center', marginTop: '40px'}}>
           <h2>Salle créée !</h2>
           <p style={{marginBottom: '24px'}}>Partagez ce code avec votre ami :</p>
@@ -317,9 +253,6 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
           </div>
           <div className="instruction-box">
              <p>En attente d'un autre joueur...</p>
-             <button className="primary-btn mt-2" style={{ backgroundColor: '#8B0000', width: '100%' }} onClick={handleLeaveRoom}>
-               Quitter la partie
-             </button>
           </div>
         </div>
       </ModeLayout>
@@ -328,14 +261,8 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
 
   // Playing state
   const isMyTurn = room.game.currentPlayer === currentPlayerRole;
-  const opponentRole = currentPlayerRole === 'A' ? 'B' : 'A';
-  const opponent = room.players[opponentRole];
-  const isOpponentDisconnected = opponent && opponent.connected === false;
-
   let footerMessage = room.game.message;
-  if (isOpponentDisconnected) {
-    footerMessage = "L'adversaire a quitté la partie.";
-  } else if (!isMyTurn && room.game.status === 'playing') {
+  if (!isMyTurn && room.game.status === 'playing') {
      footerMessage = `En attente du Joueur ${room.game.currentPlayer}...`;
   }
 
@@ -344,7 +271,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       title="12 Pions"
       subtitle={`Code : ${room.code}`}
       footerMessage={errorMsg || footerMessage}
-      onBack={handleLeaveRoom}
+      onBack={onBackToMenu}
       headerContent={
         <GamePanel 
           gameState={room.game} 
@@ -359,14 +286,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
           <div className={`player-card B ${currentPlayerRole === 'B' ? 'you' : ''}`} style={currentPlayerRole === 'B' ? {border: '2px solid #5A5A40'} : {}}>  
             <div className="player-card-header">
               <span>Joueur B {currentPlayerRole === 'B' ? "(Vous)" : ""}</span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <span>{room.players.B?.name || "En attente"}</span>
-                {room.players.B && (
-                  <span style={{ fontSize: '0.8rem', color: room.players.B.connected ? '#4CAF50' : '#F44336' }}>
-                    {room.players.B.connected ? "Connecté" : "Déconnecté"}
-                  </span>
-                )}
-              </div>
+              <span>{room.players.B?.name}</span>
             </div>
             <div className="player-dots">
               {Array.from({length: 12}).map((_, i) => <div key={`B-${i}`} className="dot B" />)}
@@ -375,14 +295,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
           <div className={`player-card A ${currentPlayerRole === 'A' ? 'you' : ''}`} style={currentPlayerRole === 'A' ? {border: '2px solid #C05640'} : {}}>  
             <div className="player-card-header">
               <span>Joueur A {currentPlayerRole === 'A' ? "(Vous)" : ""}</span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <span>{room.players.A?.name}</span>
-                {room.players.A && (
-                  <span style={{ fontSize: '0.8rem', color: room.players.A.connected ? '#4CAF50' : '#F44336' }}>
-                    {room.players.A.connected ? "Connecté" : "Déconnecté"}
-                  </span>
-                )}
-              </div>
+              <span>{room.players.A?.name}</span>
             </div>
             <div className="player-dots">
               {Array.from({length: 12}).map((_, i) => <div key={`A-${i}`} className="dot A" />)}
@@ -390,15 +303,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
           </div>
         </div>
         <div className="instruction-box">
-          <p>
-            {isOpponentDisconnected 
-              ? "L'adversaire a quitté la partie."
-              : `Vous êtes le Joueur ${currentPlayerRole}. ${isMyTurn ? "C'est à vous de jouer !" : "Attendez votre tour."}`
-            }
-          </p>
-          <button className="primary-btn mt-2" style={{ backgroundColor: '#8B0000', width: '100%' }} onClick={handleLeaveRoom}>
-            Quitter la partie
-          </button>
+          <p>Vous êtes le Joueur {currentPlayerRole}. {isMyTurn ? "C'est à vous de jouer !" : "Attendez votre tour."}</p>
         </div>
       </aside>
 
