@@ -1,4 +1,4 @@
-import { GameState, Move, Cell } from "./types";
+import { GameState, Move, Cell, GameStatus } from "./types";
 import { createInitialBoard } from "./initialBoard";
 import { applyMove, promoteIfNeeded, getLegalCaptures, switchPlayer, promoteLastPieces } from "./moveEngine";
 import { checkWinner } from "./victory";
@@ -75,8 +75,9 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       let continueCapture = false;
       let nextSelectedCell = null;
 
-      // Check for multi-capture
-      if (move.type === "capture" && !promoted) {
+      // Check for optional follow-up capture.
+      // If the piece got promoted by this capture, getLegalCaptures will use queen rules.
+      if (move.type === "capture") {
         const furtherCaptures = getLegalCaptures(newBoard, move.to);
         if (furtherCaptures.length > 0) {
           continueCapture = true;
