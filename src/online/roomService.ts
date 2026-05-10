@@ -4,6 +4,7 @@ import { OnlineRoom, OnlineRoomStatus } from "./roomTypes";
 import { GameState, Player } from "../game/types";
 import { initialState, GameAction, gameReducer } from "../game/gameReducer";
 import { createInitialBoard } from "../game/initialBoard";
+import { serializeBoardForFirebase, deserializeBoardFromFirebase } from "./boardSerializer";
 
 export const generateRoomCode = (): string => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -18,7 +19,7 @@ export const createOnlineRoom = async (playerName: string): Promise<string> => {
   const roomCode = generateRoomCode();
   const roomRef = ref(database, `rooms/${roomCode}`);
   
-  const roomData: OnlineRoom = {
+  const roomData = {
     code: roomCode,
     status: "waiting",
     createdAt: Date.now(),
@@ -32,7 +33,7 @@ export const createOnlineRoom = async (playerName: string): Promise<string> => {
     },
     game: {
       ...initialState,
-      board: createInitialBoard(),
+      board: serializeBoardForFirebase(createInitialBoard()),
       selectedCell: null
     }
   };
@@ -66,7 +67,13 @@ export const listenToOnlineRoom = (roomCode: string, callback: (room: OnlineRoom
   
   const unsubscribe = onValue(roomRef, (snapshot) => {
     if (snapshot.exists()) {
-      callback(snapshot.val() as OnlineRoom);
+      const rawRoom = snapshot.val();
+      if (rawRoom.game && rawRoom.game.board) {
+         rawRoom.game.board = deserializeBoardFromFirebase(rawRoom.game.board);
+         // Ensure moveHistory is an array even if Firebase stripped it empty
+         rawRoom.game.moveHistory = rawRoom.game.moveHistory || [];
+      }
+      callback(rawRoom as OnlineRoom);
     } else {
       callback(null);
     }
@@ -83,6 +90,7 @@ export const updateOnlineGameState = async (roomCode: string, game: GameState): 
   // Clean selectedCell before sending to Firebase
   const cleanGame = {
     ...game,
+    board: serializeBoardForFirebase(game.board),
     selectedCell: null
   };
   
@@ -97,9 +105,9 @@ export const updateOnlineGameState = async (roomCode: string, game: GameState): 
 export const restartOnlineRoom = async (roomCode: string): Promise<void> => {
   const roomRef = ref(database, `rooms/${roomCode}`);
   
-  const newGame: GameState = {
+  const newGame = {
     ...initialState,
-    board: createInitialBoard(),
+    board: serializeBoardForFirebase(createInitialBoard()),
     selectedCell: null
   };
   
