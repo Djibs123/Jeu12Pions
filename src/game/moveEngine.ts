@@ -160,6 +160,27 @@ export const promoteIfNeeded = (board: Board, cell: Cell): boolean => {
   return false;
 };
 
+export const promoteLastPieces = (board: Board): void => {
+  (["A", "B"] as Player[]).forEach(player => {
+    let lastPiece: Piece | null = null;
+    let count = 0;
+    
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const piece = getPieceAt(board, { row: r, col: c });
+        if (piece && piece.player === player) {
+          count++;
+          lastPiece = piece;
+        }
+      }
+    }
+    
+    if (count === 1 && lastPiece && lastPiece.type === "pawn") {
+      lastPiece.type = "queen";
+    }
+  });
+};
+
 export const switchPlayer = (player: Player): Player => {
   return player === "A" ? "B" : "A";
 };

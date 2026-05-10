@@ -1,6 +1,6 @@
 import { GameState, Move, Cell } from "./types";
 import { createInitialBoard } from "./initialBoard";
-import { applyMove, promoteIfNeeded, getLegalCaptures, switchPlayer } from "./moveEngine";
+import { applyMove, promoteIfNeeded, getLegalCaptures, switchPlayer, promoteLastPieces } from "./moveEngine";
 import { checkWinner } from "./victory";
 import { isSameCell, getPieceAt } from "./rules";
 
@@ -53,6 +53,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
 
       const newBoard = applyMove(state.board, move);
       const promoted = promoteIfNeeded(newBoard, move.to);
+      promoteLastPieces(newBoard);
       
       // Update history
       const moveRecord = {

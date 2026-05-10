@@ -29,6 +29,19 @@
   }
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .header-title {
   display: flex;
   flex-direction: column;
@@ -51,11 +64,51 @@
   margin-top: 4px;
 }
 
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: transparent;
+  color: #5A5A40;
+  border: 1px solid #D1C7B1;
+}
+
+.back-btn:hover {
+  background-color: #E6DFD1;
+  color: #1A1A1A;
+}
+
+@media (max-width: 600px) {
+  .hide-on-mobile {
+    display: none;
+  }
+  .back-btn {
+    padding: 8px;
+  }
+  .header-left {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 /* Status Panel inside Header */
 .status-panel {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 32px;
+}
+
+@media (max-width: 600px) {
+  .status-panel {
+    gap: 12px;
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .player-info {
