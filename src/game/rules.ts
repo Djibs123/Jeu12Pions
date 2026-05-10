@@ -9,13 +9,17 @@ export const isSameCell = (a: Cell, b: Cell): boolean => {
 };
 
 export const getPieceAt = (board: Board, cell: Cell): Piece | null => {
-  if (!isInsideBoard(cell)) return null;
-  return board[cell.row][cell.col];
+  if (!board || !isInsideBoard(cell)) return null;
+  const row = board[cell.row];
+  if (!row) return null;
+  return row[cell.col] || null;
 };
 
 export const isEmpty = (board: Board, cell: Cell): boolean => {
-  if (!isInsideBoard(cell)) return false;
-  return board[cell.row][cell.col] === null;
+  if (!board || !isInsideBoard(cell)) return false;
+  const row = board[cell.row];
+  if (!row) return true;
+  return !row[cell.col];
 };
 
 export const isEnemy = (piece: Piece, target: Piece | null): boolean => {
@@ -29,5 +33,16 @@ export const isOwnPiece = (piece: Piece, target: Piece | null): boolean => {
 };
 
 export const cloneBoard = (board: Board): Board => {
-  return board.map(row => row.map(cell => cell ? { ...cell } : null));
+  // Ensure we reconstruct a 5x5 board in case Firebase stripped lengths
+  const newBoard: Board = [];
+  for (let r = 0; r < 5; r++) {
+    const row = board && board[r] ? board[r] : [];
+    const newRow = [];
+    for (let c = 0; c < 5; c++) {
+      const p = row[c] ? { ...row[c]! } : null;
+      newRow.push(p);
+    }
+    newBoard.push(newRow);
+  }
+  return newBoard;
 };
