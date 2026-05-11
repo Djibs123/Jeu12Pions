@@ -57,6 +57,9 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
 
       const newBoard = applyMove(state.board, move);
       
+      let promoted = promoteIfNeeded(newBoard, move.to);
+      promoteLastPieces(newBoard);
+
       let continueCapture = false;
       let nextSelectedCell = null;
       let nextMsg = "";
@@ -68,14 +71,6 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
           nextSelectedCell = move.to;
           nextMsg = "Capture multiple possible. Continuez ou terminez le tour.";
         }
-      }
-
-      let promoted = false;
-      // Only promote if we are NOT continuing to capture
-      // (a piece that lands on the last row during a capture sequence only promotes if it stops)
-      if (!continueCapture) {
-        promoted = promoteIfNeeded(newBoard, move.to);
-        promoteLastPieces(newBoard);
       }
       
       // Update history
