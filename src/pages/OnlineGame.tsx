@@ -11,7 +11,7 @@ import {
   restartOnlineRoom
 } from '../online/roomService';
 import { OnlineRoom } from '../online/roomTypes';
-import { Player, Cell } from '../game/types';
+import { Player, Cell, GameState } from '../game/types';
 import { gameReducer } from '../game/gameReducer';
 import { getLegalMoves, getLegalCaptures } from '../game/moveEngine';
 import { isSameCell, getPieceAt } from '../game/rules';
@@ -27,6 +27,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
   const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(null);
   const [currentPlayerRole, setCurrentPlayerRole] = useState<Player | null>(null);
   const [room, setRoom] = useState<OnlineRoom | null>(null);
+  const [localGame, setLocalGame] = useState<GameState | null>(null);
   
   const [localSelectedCell, setLocalSelectedCell] = useState<Cell | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,21 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       setRoom(updatedRoom);
       if (!updatedRoom) {
         setErrorMsg('La salle a été fermée ou est introuvable.');
+      } else if (updatedRoom.game) {
+        setLocalGame((prev) => {
+          if (!prev) return updatedRoom.game;
+          
+          // Only overwrite local game state if Firebase brings newer or equal moves
+          // This prevents network lag from visually reverting a fast multi-kill local move
+          const fbLength = updatedRoom.game.moveHistory?.length || 0;
+          const localLength = prev.moveHistory?.length || 0;
+          
+          if (fbLength >= localLength) {
+            return updatedRoom.game;
+          }
+          // If local is strictly ahead (optimistic), keep local
+          return prev;
+        });
       }
     });
 
@@ -48,28 +64,28 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     };
   }, [currentRoomCode]);
 
-  // Infer selectedCell if we are in mustContinueCapture phase and page refreshed
-  useEffect(() => {
-    if (room && room.status === 'playing' && room.game.mustContinueCapture && !localSelectedCell) {
-      const history = room.game.moveHistory || [];
+  const activeSelectedCell = useMemo(() => {
+    if (localGame?.mustContinueCapture) {
+      const history = localGame.moveHistory || [];
       if (history.length > 0) {
-        setLocalSelectedCell(history[history.length - 1].to);
+        return history[history.length - 1].to;
       }
     }
-  }, [room, localSelectedCell]);
+    return localSelectedCell;
+  }, [localGame, localSelectedCell]);
 
-  // Compute legal moves based on Firebase board state and local selection
+  // Compute legal moves based on local optimistic game state
   const legalMoves = useMemo(() => {
-    if (!room || room.status !== 'playing' || !room.game) return [];
-    if (!localSelectedCell || room.game.status === 'finished') return [];
-    if (room.game.currentPlayer !== currentPlayerRole) return [];
+    if (!room || room.status !== 'playing' || !localGame) return [];
+    if (!activeSelectedCell || localGame.status === 'finished') return [];
+    if (localGame.currentPlayer !== currentPlayerRole) return [];
     
-    if (room.game.mustContinueCapture) {
-       return getLegalCaptures(room.game.board, localSelectedCell);
+    if (localGame.mustContinueCapture) {
+       return getLegalCaptures(localGame.board, activeSelectedCell);
     }
     
-    return getLegalMoves(room.game.board, localSelectedCell);
-  }, [room, localSelectedCell, currentPlayerRole]);
+    return getLegalMoves(localGame.board, activeSelectedCell);
+  }, [room, localGame, activeSelectedCell, currentPlayerRole]);
 
   const handleCreateRoom = async () => {
     setErrorMsg('');
@@ -113,11 +129,11 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
   };
 
   const handleCellClick = (cell: Cell) => {
-    if (!room || room.status !== 'playing' || !currentPlayerRole) return;
-    if (room.game.status === 'finished') return;
+    if (!room || room.status !== 'playing' || !currentPlayerRole || !localGame) return;
+    if (localGame.status === 'finished') return;
     
     // Check if it's player's turn
-    if (room.game.currentPlayer !== currentPlayerRole) {
+    if (localGame.currentPlayer !== currentPlayerRole) {
       setErrorMsg("Ce n'est pas ton tour.");
       return;
     }
@@ -126,10 +142,11 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     // Try to move
     const move = legalMoves.find(m => isSameCell(m.to, cell));
     if (move) {
-      const mockState = { ...room.game, selectedCell: localSelectedCell };
+      const mockState = { ...localGame, selectedCell: activeSelectedCell };
       const nextState = gameReducer(mockState, { type: 'PLAY_MOVE', move });
       
       setLocalSelectedCell(nextState.selectedCell);
+      setLocalGame(nextState); // Optimistic UI
       updateOnlineGameState(currentRoomCode!, nextState).catch(e => {
         console.error("Erreur d'écriture Firebase:", e);
       });
@@ -137,30 +154,39 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
     }
 
     // Try to select
-    const piece = getPieceAt(room.game.board, cell);
+    const piece = getPieceAt(localGame.board, cell);
     if (piece) {
       if (piece.player !== currentPlayerRole) {
-        setErrorMsg("Tu ne peux jouer que tes propres pions.");
+        if (localGame.mustContinueCapture) {
+          setErrorMsg("Clique sur la case vide derrière le pion pour le capturer.");
+        } else {
+          setErrorMsg("Tu ne peux jouer que tes propres pions.");
+        }
         return;
       }
-      if (room.game.mustContinueCapture) {
-        if (!localSelectedCell || !isSameCell(localSelectedCell, cell)) {
+      if (localGame.mustContinueCapture) {
+        if (!activeSelectedCell || !isSameCell(activeSelectedCell, cell)) {
           setErrorMsg("Vous devez continuer la capture ou terminer le tour.");
           return;
         }
       }
       setLocalSelectedCell(cell);
+    } else {
+      if (localGame.mustContinueCapture) {
+        setErrorMsg("Vous devez continuer la capture ou cliquer sur 'Terminer le tour'.");
+      }
     }
   };
 
   const handleEndTurn = () => {
-    if (!room || room.status !== 'playing' || !currentPlayerRole) return;
-    if (room.game.currentPlayer !== currentPlayerRole) return;
+    if (!room || room.status !== 'playing' || !currentPlayerRole || !localGame) return;
+    if (localGame.currentPlayer !== currentPlayerRole) return;
     
-    const mockState = { ...room.game, selectedCell: localSelectedCell };
+    const mockState = { ...localGame, selectedCell: activeSelectedCell };
     const nextState = gameReducer(mockState, { type: 'END_TURN' });
     
     setLocalSelectedCell(nextState.selectedCell);
+    setLocalGame(nextState); // Optimistic UI
     updateOnlineGameState(currentRoomCode!, nextState).catch(e => {
       console.error("Erreur d'écriture Firebase:", e);
     });
@@ -260,11 +286,13 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
   }
 
   // Playing state
-  const isMyTurn = room.game.currentPlayer === currentPlayerRole;
-  let footerMessage = room.game.message;
-  if (!isMyTurn && room.game.status === 'playing') {
-     footerMessage = `En attente du Joueur ${room.game.currentPlayer}...`;
+  const isMyTurn = localGame?.currentPlayer === currentPlayerRole;
+  let footerMessage = localGame?.message;
+  if (!isMyTurn && localGame?.status === 'playing') {
+     footerMessage = `En attente du Joueur ${localGame.currentPlayer}...`;
   }
+
+  if (!localGame) return null;
 
   return (
     <ModeLayout
@@ -274,7 +302,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       onBack={onBackToMenu}
       headerContent={
         <GamePanel 
-          gameState={room.game} 
+          gameState={localGame} 
           onEndTurn={handleEndTurn} 
           onRestart={handleRestart} 
         />
@@ -310,8 +338,8 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       <section className="board-section">
         <div className="board-wrapper">
           <Board 
-            board={room.game.board} 
-            selectedCell={localSelectedCell} 
+            board={localGame.board} 
+            selectedCell={activeSelectedCell} 
             legalMoves={legalMoves} 
             onCellClick={handleCellClick} 
           />
@@ -319,7 +347,7 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
       </section>
       
       <aside className="right-panel">
-        <MoveHistory history={room.game.moveHistory || []} />
+        <MoveHistory history={localGame.moveHistory || []} />
       </aside>
     </ModeLayout>
   );

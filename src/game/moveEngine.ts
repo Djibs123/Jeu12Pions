@@ -43,15 +43,15 @@ export const getPawnCaptures = (board: Board, from: Cell): Move[] => {
   const piece = getPieceAt(board, from);
   if (!piece || piece.type !== "pawn") return moves;
 
-  const dirs = getPawnDirections(piece.player);
-  for (const d of dirs) {
+  // In African Checkers, pawns can capture backwards (all orthogonal directions)
+  for (const d of ORTHOGONAL_DIRECTIONS) {
     const jumped = { row: from.row + d.r, col: from.col + d.c };
     const to = { row: from.row + d.r * 2, col: from.col + d.c * 2 };
     
     if (isInsideBoard(jumped) && isInsideBoard(to)) {
       const jumpedPiece = getPieceAt(board, jumped);
       if (isEnemy(piece, jumpedPiece) && isEmpty(board, to)) {
-        moves.push({ from, to, type: "capture", captured: [jumped] });
+        moves.push({ from: { ...from }, to: { ...to }, type: "capture", captured: [{ ...jumped }] });
       }
     }
   }
@@ -84,7 +84,7 @@ export const getQueenCaptures = (board: Board, from: Cell): Move[] => {
       } else {
         // We already found an enemy, now we look for empty landing spots
         if (isEmpty(board, to)) {
-          moves.push({ from, to, type: "capture", captured: [foundEnemyCell] });
+          moves.push({ from: { ...from }, to: { ...to }, type: "capture", captured: [{ ...foundEnemyCell }] });
         } else {
           break; // blocked by another piece after the enemy
         }

@@ -1,7 +1,8 @@
-import { GameState, Move, Cell } from "./types";
+import { GameState, Move, Cell, GameStatus } from "./types";
 import { createInitialBoard } from "./initialBoard";
 import { applyMove, promoteIfNeeded, getLegalCaptures, switchPlayer, promoteLastPieces } from "./moveEngine";
 import { checkWinner } from "./victory";
+import { cloneBoard } from "./rules";
 import { isSameCell, getPieceAt } from "./rules";
 
 export type GameAction = 
@@ -49,11 +50,33 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       const { move } = action;
       
       const piece = getPieceAt(state.board, move.from);
-      if (!piece) return state;
+      if (!piece) {
+        console.warn("Piece not found at", move.from);
+        return state;
+      }
 
       const newBoard = applyMove(state.board, move);
-      const promoted = promoteIfNeeded(newBoard, move.to);
-      promoteLastPieces(newBoard);
+      
+      let continueCapture = false;
+      let nextSelectedCell = null;
+      let nextMsg = "";
+      
+      if (move.type === "capture") {
+        const furtherCaptures = getLegalCaptures(newBoard, move.to);
+        if (furtherCaptures.length > 0) {
+          continueCapture = true;
+          nextSelectedCell = move.to;
+          nextMsg = "Capture multiple possible. Continuez ou terminez le tour.";
+        }
+      }
+
+      let promoted = false;
+      // Only promote if we are NOT continuing to capture
+      // (a piece that lands on the last row during a capture sequence only promotes if it stops)
+      if (!continueCapture) {
+        promoted = promoteIfNeeded(newBoard, move.to);
+        promoteLastPieces(newBoard);
+      }
       
       // Update history
       const moveRecord = {
@@ -69,20 +92,8 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       const newHistory = [...state.moveHistory, moveRecord];
 
       let nextPlayer = state.currentPlayer;
-      let nextStatus = state.status;
+      let nextStatus: GameStatus = state.status;
       let nextWinner = state.winner;
-      let nextMsg = "";
-      let continueCapture = false;
-      let nextSelectedCell = null;
-
-      if (move.type === "capture") {
-        const furtherCaptures = getLegalCaptures(newBoard, move.to);
-        if (furtherCaptures.length > 0) {
-          continueCapture = true;
-          nextSelectedCell = move.to;
-          nextMsg = "Capture multiple possible. Continuez ou terminez le tour.";
-        }
-      }
 
       if (!continueCapture) {
         // Turn over
@@ -100,7 +111,7 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
         ...state,
         board: newBoard,
         currentPlayer: nextPlayer,
-        status: nextStatus as GameStatus,
+        status: nextStatus,
         winner: nextWinner,
         moveHistory: newHistory,
         message: nextMsg,
@@ -113,11 +124,18 @@ export const gameReducer = (state: GameState, action: GameAction): GameState => 
       if (state.status === "finished") return state;
       if (!state.mustContinueCapture) return state;
       
+      const newBoard = cloneBoard(state.board);
+      if (state.selectedCell) {
+        promoteIfNeeded(newBoard, state.selectedCell);
+      }
+      promoteLastPieces(newBoard);
+
       const nextPlayer = switchPlayer(state.currentPlayer);
-      const nextWinner = checkWinner(state.board, state.currentPlayer);
+      const nextWinner = checkWinner(newBoard, state.currentPlayer);
       
       return {
         ...state,
+        board: newBoard,
         currentPlayer: nextPlayer,
         status: nextWinner ? "finished" : "playing",
         winner: nextWinner,

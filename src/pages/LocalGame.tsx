@@ -37,8 +37,14 @@ export const LocalGame: React.FC<LocalGameProps> = ({ onBackToMenu }) => {
 
     // Is it a piece selection?
     const piece = getPieceAt(state.board, cell);
-    if (piece && piece.player === state.currentPlayer) {
-       dispatch({ type: 'SELECT_CELL', cell });
+    if (piece) {
+      if (piece.player !== state.currentPlayer) {
+        if (state.mustContinueCapture) {
+          console.warn("Clique sur la case vide derrière le pion pour le capturer.");
+        }
+        return;
+      }
+      dispatch({ type: 'SELECT_CELL', cell });
     }
   };
 
