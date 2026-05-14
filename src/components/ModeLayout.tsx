@@ -1,5 +1,6 @@
-import React, { ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import React, { ReactNode, useState, useEffect } from 'react';
+import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+import { gameAudio } from '../game/audio';
 
 interface ModeLayoutProps {
   title: string;
@@ -18,6 +19,12 @@ export const ModeLayout: React.FC<ModeLayoutProps> = ({
   onBack,
   headerContent
 }) => {
+  const [soundEnabled, setSoundEnabled] = useState(gameAudio.isEnabled);
+
+  const toggleSound = () => {
+    setSoundEnabled(gameAudio.toggle());
+  };
+
   return (
     <div className="game-container">
       <header className="header">
@@ -32,11 +39,17 @@ export const ModeLayout: React.FC<ModeLayoutProps> = ({
           </div>
         </div>
         
-        {headerContent && (
-          <div className="header-right">
-             {headerContent}
-          </div>
-        )}
+        <div className="header-right">
+          {headerContent}
+          <button 
+            className="back-btn" 
+            onClick={toggleSound} 
+            title={soundEnabled ? "Désactiver le son" : "Activer le son"}
+            style={{ marginLeft: '12px', padding: '6px', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}
+          >
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+        </div>
       </header>
       
       <main className="main-content">

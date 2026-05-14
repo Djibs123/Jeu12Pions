@@ -8,6 +8,7 @@ import { getLegalMoves, getLegalCaptures } from '../game/moveEngine';
 import { isSameCell, getPieceAt } from '../game/rules';
 import { Cell } from '../game/types';
 import { getAIMove, chooseRandomMove, getCapturingMoves } from '../game/aiPlayer';
+import { useGameAudio } from '../hooks/useGameAudio';
 
 interface AIGameProps {
   onBackToMenu: () => void;
@@ -15,6 +16,8 @@ interface AIGameProps {
 
 export const AIGame: React.FC<AIGameProps> = ({ onBackToMenu }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  
+  useGameAudio(state);
 
   const legalMoves = useMemo(() => {
     if (!state.selectedCell || state.status === 'finished') return [];

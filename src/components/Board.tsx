@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Board as BoardType, Cell as CellType, Move } from '../game/types';
 import { Cell } from './Cell';
 import { isSameCell } from '../game/rules';
@@ -10,9 +11,25 @@ interface BoardProps {
   onCellClick: (cell: CellType) => void;
 }
 
+const boardVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.02
+    }
+  }
+};
+
 export const Board: React.FC<BoardProps> = ({ board, selectedCell, legalMoves, onCellClick }) => {
   return (
-    <div className="board" id="game-board">
+    <motion.div 
+      className="board" 
+      id="game-board"
+      variants={boardVariants}
+      initial="hidden"
+      animate="show"
+    >
       {board.map((row, rIndex) =>
         row.map((piece, cIndex) => {
           const cell = { row: rIndex, col: cIndex };
@@ -35,6 +52,6 @@ export const Board: React.FC<BoardProps> = ({ board, selectedCell, legalMoves, o
           );
         })
       )}
-    </div>
+    </motion.div>
   );
 };

@@ -15,6 +15,7 @@ import { Player, Cell, GameState } from '../game/types';
 import { gameReducer } from '../game/gameReducer';
 import { getLegalMoves, getLegalCaptures } from '../game/moveEngine';
 import { isSameCell, getPieceAt } from '../game/rules';
+import { useGameAudio } from '../hooks/useGameAudio';
 
 interface OnlineGameProps {
   onBackToMenu: () => void;
@@ -29,6 +30,8 @@ export const OnlineGame: React.FC<OnlineGameProps> = ({ onBackToMenu }) => {
   const [room, setRoom] = useState<OnlineRoom | null>(null);
   const [localGame, setLocalGame] = useState<GameState | null>(null);
   
+  useGameAudio(localGame);
+
   const [localSelectedCell, setLocalSelectedCell] = useState<Cell | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');

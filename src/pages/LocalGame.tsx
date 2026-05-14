@@ -7,6 +7,7 @@ import { gameReducer, initialState } from '../game/gameReducer';
 import { getLegalMoves, getLegalCaptures } from '../game/moveEngine';
 import { isSameCell, getPieceAt } from '../game/rules';
 import { Cell } from '../game/types';
+import { useGameAudio } from '../hooks/useGameAudio';
 
 interface LocalGameProps {
   onBackToMenu: () => void;
@@ -14,6 +15,8 @@ interface LocalGameProps {
 
 export const LocalGame: React.FC<LocalGameProps> = ({ onBackToMenu }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  
+  useGameAudio(state);
 
   const legalMoves = useMemo(() => {
     if (!state.selectedCell || state.status === 'finished') return [];

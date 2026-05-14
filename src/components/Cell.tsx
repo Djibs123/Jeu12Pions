@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Cell as CellType, Piece as PieceType } from '../game/types';
 import { Piece } from './Piece';
 
@@ -11,6 +12,11 @@ interface CellProps {
   onClick: () => void;
 }
 
+const cellVariants = {
+  hidden: { opacity: 0, scale: 0.8 },
+  show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } }
+};
+
 export const Cell: React.FC<CellProps> = ({ cell, piece, isSelected, isHighlight, isCaptureHighlight, onClick }) => {
   const isDark = (cell.row + cell.col) % 2 === 1;
   const isCenter = cell.row === 2 && cell.col === 2;
@@ -22,8 +28,16 @@ export const Cell: React.FC<CellProps> = ({ cell, piece, isSelected, isHighlight
   else if (isHighlight) className += ' highlight';
 
   return (
-    <div className={className} id={`cell-${cell.row}-${cell.col}`} onClick={onClick}>
-      {piece && <Piece piece={piece} />}
-    </div>
+    <motion.div 
+      className={className} 
+      id={`cell-${cell.row}-${cell.col}`} 
+      onClick={onClick}
+      variants={cellVariants}
+      whileTap={{ scale: 0.95 }}
+    >
+      <AnimatePresence>
+        {piece && <Piece key={piece.id} piece={piece} />}
+      </AnimatePresence>
+    </motion.div>
   );
 };
